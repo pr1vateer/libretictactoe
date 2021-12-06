@@ -1154,6 +1154,7 @@ dependencies = [
  "ggez",
  "glam 0.18.0",
  "mint",
+ "rand",
 ]
 
 [[package]]

@@ -6,17 +6,28 @@ use ggez::{GameResult, Context};
 use ggez::graphics::{self, Color};
 use ggez::conf;
 use glam::*;
+use rand::Rng;
 
 const CELL_SIZE: f32 = 128.0;
 const CELLS_PER_SIDE: f32 = 3.0;
 const SCREEN_WIDTH: f32 = CELL_SIZE * CELLS_PER_SIDE;
 const SCREEN_HEIGHT: f32 = CELL_SIZE * CELLS_PER_SIDE;
 
+#[derive(PartialEq)]
+enum GameStatus {
+    Running,
+    Won,
+    Lost,
+    Draw
+}
+
 struct GameState {
-    cells: [i32; 9],
+    cells: [usize; 9], //Board state
+    free_cells: Vec<usize>, //Free cells indices
     draw_points: HashMap<i32, mint::Point2<f32>>,
     cross_img: graphics::Image,
-    o_img: graphics::Image
+    o_img: graphics::Image,
+    game_status: GameStatus
 }
 
 impl GameState {
@@ -30,29 +41,39 @@ impl GameState {
             draw_points.insert(i, get_point_by_cell(i as f32));
         }
 
-        let cells_init = [1,0,0,0,2,0,0,0,0];
+        let cells_init = [0,0,0,0,0,0,0,0,0];
 
-        let result = GameState { cells: cells_init, cross_img: cross_img, o_img: o_img, draw_points: draw_points };
+        let result = GameState { cells: cells_init, free_cells: vec![0,1,2,3,4,5,6,7,8], cross_img: cross_img, o_img: o_img, 
+            draw_points: draw_points, game_status: GameStatus::Running };
         return Ok(result);
     }
-}
 
-impl event::EventHandler<ggez::GameError> for GameState {
-    fn update(&mut self, _ctx: &mut Context) -> GameResult {
-        Ok(())
-    }
-
-    fn mouse_button_down_event(&mut self, _ctx: &mut Context, button: MouseButton, x: f32, y: f32) -> () {
-        println!("Mouse button pressed: {:?}, x: {}, y: {}", button, x, y);
-        if button != MouseButton::Left {
+    fn make_turn(&mut self) -> () {
+        if self.free_cells.len() == 0 {
+            self.game_status = GameStatus::Draw;
             return;
         }
 
-        let cell = get_cell(x, y);
-        self.cells[cell as usize] = 1;
+        let num = if self.free_cells.len() == 1 { self.free_cells[0] as usize } else { rand::thread_rng().gen_range(0..self.free_cells.len()-1) };
+        let target_index = self.free_cells[num];
+        println!("Got random {}, target {}", num, target_index);
+        self.cells[target_index] = 2;
+        self.free_cells.retain(|x| *x != target_index);
     }
 
-    fn draw(&mut self, ctx: &mut Context) -> GameResult {
+    fn draw_game_end(&mut self, ctx: &mut Context) -> GameResult {
+        graphics::clear(ctx, Color::WHITE);
+
+        let text = self.get_end_text();
+        let font = graphics::Font::new(ctx, "/LiberationMono-Regular.ttf")?;
+        let text_object = graphics::Text::new((text, font, 48.0));
+
+        graphics::draw(ctx, &text_object, (mint::Point2{ x: 10.0, y: 10.0 }, 0.0, Color::BLACK) )?;
+        graphics::present(ctx)?;
+        Ok(())
+    }
+
+    fn draw_game_running(&mut self, ctx: &mut Context) -> GameResult {
         graphics::clear(ctx, Color::WHITE);
 
         //Draw grid
@@ -79,6 +100,45 @@ impl event::EventHandler<ggez::GameError> for GameState {
 
         Ok(())
     }
+
+    fn get_end_text(&mut self) -> &str {
+        match self.game_status {
+            GameStatus::Draw => return "Draw!",
+            GameStatus::Lost => return "You lost",
+            GameStatus::Won => return "You won",
+            _ => panic!("Unknown status or game is running")
+        }
+    } 
+}
+
+impl event::EventHandler<ggez::GameError> for GameState {
+    fn update(&mut self, _ctx: &mut Context) -> GameResult {
+        Ok(())
+    }
+
+    fn mouse_button_down_event(&mut self, _ctx: &mut Context, button: MouseButton, x: f32, y: f32) -> () {
+        println!("Mouse button pressed: {:?}, x: {}, y: {}", button, x, y);
+        if button != MouseButton::Left {
+            return;
+        }
+
+        let cell = get_cell(x, y);
+        println!("Got cell {}, contents {}", cell, self.cells[cell]);
+
+        if self.cells[cell] == 0 {
+            self.cells[cell] = 1;
+            self.free_cells.retain(|x| *x != cell);
+            println!("Count: {}", self.free_cells.len());
+            self.make_turn();
+        }    
+    }
+
+    fn draw(&mut self, ctx: &mut Context) -> GameResult {
+        match self.game_status{
+            GameStatus::Running => return self.draw_game_running(ctx),
+            _ => return self.draw_game_end(ctx)
+        }
+    }
 }
 
 fn draw_line(ctx: &mut Context, point_from: mint::Point2<f32>, point_to: mint::Point2<f32>) -> GameResult {
@@ -99,18 +159,18 @@ fn get_point_by_cell(cell: f32) -> mint::Point2<f32> {
     let x = cell_x * CELL_SIZE;
     let y = cell_y * CELL_SIZE;
 
-    println!("For cell {} x is {} {} y is {} {}", cell, cell_x, x, cell_y, y);
+    // println!("For cell {} x is {} {} y is {} {}", cell, cell_x, x, cell_y, y);
 
     return mint::Point2{ x: x, y: y };
 }
 
-fn get_cell(x: f32, y: f32) -> i32 {
+fn get_cell(x: f32, y: f32) -> usize {
     let cell_y = (y / CELL_SIZE).floor();
     let cell_x = (x / CELL_SIZE).floor();
     let cell = cell_y * CELLS_PER_SIDE + cell_x;
-    println!("{} {} {}", cell_y, cell_x, cell);
+    // println!("{} {} {}", cell_y, cell_x, cell);
 
-    return cell as i32;
+    return cell as usize;
 }
 
 fn get_resource_path() -> path::PathBuf {
