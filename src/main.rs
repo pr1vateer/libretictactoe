@@ -54,7 +54,7 @@ impl GameState {
             return;
         }
 
-        let num = if self.free_cells.len() == 1 { self.free_cells[0] as usize } else { rand::thread_rng().gen_range(0..self.free_cells.len()-1) };
+        let num = if self.free_cells.len() == 1 { self.free_cells[0] } else { rand::thread_rng().gen_range(0..self.free_cells.len()-1) };
         let target_index = self.free_cells[num];
         println!("Got random {}, target {}", num, target_index);
         self.cells[target_index] = 2;
