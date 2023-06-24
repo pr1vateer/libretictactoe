@@ -20,4 +20,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           RUSTTARGET: ${{ matrix.target }}
-          EXTRA_FILES: "README.md"
+          EXTRA_FILES: "README.md resources/LiberationMono-Regular.ttf resources/cross.png resources/o.png"
